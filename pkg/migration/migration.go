@@ -25,6 +25,8 @@ type Migration struct {
 	Name     string
 	FullPath string
 
+	NoChecksum bool
+
 	Up   MigratorFunc
 	Down MigratorFunc
 }
@@ -41,7 +43,15 @@ func Register(up MigratorFunc, down MigratorFunc) {
 		Up:       up,
 		Down:     down,
 	})
+}
 
+func RegisterSystemMigration(name string, up MigratorFunc, down MigratorFunc) {
+	RegisteredMigrations = append(RegisteredMigrations, Migration{
+		Name:       name,
+		NoChecksum: true,
+		Up:         up,
+		Down:       down,
+	})
 }
 
 type MigrationsMeta struct {
@@ -63,14 +73,21 @@ func RunMigrations(db *gorm.DB) error {
 
 		for i, migration := range RegisteredMigrations {
 			log.Infof("(%d) Migrating %s", i, migration.Name)
-			sum, _ := getMigrationChecksum(migration)
+
+			var sum string
 
 			// Check if we have a matching migration with a correct checksum, and skip if that is the case.
 			var existing []MigrationsMeta
 			tx.Table(MigrationsTableName).Limit(1).Find(&existing, "name = ?", migration.Name)
 			if len(existing) > 0 {
-				if existing[0].Checksum != sum {
-					return fmt.Errorf("checksum mismatch for migration %s: %s != %s", migration.Name, sum, existing[0].Checksum)
+				// Allows system migrations to ignore checksums
+				if !migration.NoChecksum {
+					sum, _ := getMigrationChecksum(migration)
+					if existing[0].Checksum != sum {
+						return fmt.Errorf("checksum mismatch for migration %s: %s != %s", migration.Name, sum, existing[0].Checksum)
+					}
+				} else {
+					sum = time.Now().UTC().String()
 				}
 
 				log.Infof(">\t DONE skip %s", migration.Name)
@@ -106,11 +123,16 @@ func getMigrationChecksum(migration Migration) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
 
 	hash := md5.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", err
 	}
+
+	err = file.Close()
+	if err != nil {
+		return "", err
+	}
+
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }

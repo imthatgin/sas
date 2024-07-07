@@ -52,8 +52,11 @@ func main() {
 	log.Fatal(e.Start(":8082"))
 }
 
-func addModels(db *gorm.DB) []sas.Provider {
+func setupAuth(db *gorm.DB) {
 
+}
+
+func addModels(db *gorm.DB) []sas.Provider {
 	entryPolicy := sas.NewPolicy[Entry](endpoints.AllEndpoints)
 	entryPolicy.
 		CanListAll(func(c echo.Context) bool {
