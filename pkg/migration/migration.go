@@ -4,14 +4,15 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/labstack/gommon/log"
-	"gorm.io/gorm"
 	"io"
 	"os"
 	"path"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/labstack/gommon/log"
+	"gorm.io/gorm"
 )
 
 var (
@@ -62,14 +63,14 @@ type MigrationsMeta struct {
 }
 
 func RunMigrations(db *gorm.DB) error {
-	log.Infof("Will perform migration over %d migrations", len(RegisteredMigrations))
-
 	err := db.Transaction(func(tx *gorm.DB) error {
-		log.Infof("Ensuring meta table exists...")
+		log.Infof("Ensuring meta table exists")
 		metaErr := tx.Table(MigrationsTableName).AutoMigrate(MigrationsMeta{})
 		if metaErr != nil {
 			return metaErr
 		}
+
+		log.Infof("Will migrate over %d migrations", len(RegisteredMigrations))
 
 		for i, migration := range RegisteredMigrations {
 			log.Infof("(%d) Migrating %s", i, migration.Name)
@@ -82,7 +83,10 @@ func RunMigrations(db *gorm.DB) error {
 			if len(existing) > 0 {
 				// Allows system migrations to ignore checksums
 				if !migration.NoChecksum {
-					sum, _ := getMigrationChecksum(migration)
+					sum, _ = getMigrationChecksum(migration)
+					if sum == "" {
+						return fmt.Errorf("checksum was empty for migration %s", migration.Name)
+					}
 					if existing[0].Checksum != sum {
 						return fmt.Errorf("checksum mismatch for migration %s: %s != %s", migration.Name, sum, existing[0].Checksum)
 					}
@@ -92,6 +96,8 @@ func RunMigrations(db *gorm.DB) error {
 
 				log.Infof(">\t DONE skip %s", migration.Name)
 				continue
+			} else {
+				sum, _ = getMigrationChecksum(migration)
 			}
 
 			err := migration.Up(tx)
@@ -107,6 +113,7 @@ func RunMigrations(db *gorm.DB) error {
 				Checksum:  sum,
 				Timestamp: timeStamp,
 			})
+			log.Infof("Added migration meta for %s with checksum %s", migration.Name, sum)
 
 			log.Infof(">\t DONE migration %s", migration.Name)
 		}
