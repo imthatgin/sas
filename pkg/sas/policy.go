@@ -30,6 +30,10 @@ func NewPolicy[T any](endpoints endpoints.HttpEndpointType) Policy[T] {
 			return false
 		},
 
+		canWriteById: func(c echo.Context, entity T) bool {
+			return false
+		},
+
 		canCreate: func(c echo.Context) bool {
 			return false
 		},
@@ -43,27 +47,29 @@ func NewPolicy[T any](endpoints endpoints.HttpEndpointType) Policy[T] {
 // CanListAll takes a predicate and determines whether the operation can proceed.
 func (p *Policy[T]) CanListAll(predicate func(c echo.Context) bool) *Policy[T] {
 	p.canListAll = predicate
-
 	return p
 }
 
 // CanListById takes a predicate and determines whether the operation can proceed.
 func (p *Policy[T]) CanListById(predicate func(c echo.Context, entity T) bool) *Policy[T] {
 	p.canListById = predicate
-
 	return p
 }
 
 // CanWriteById takes a predicate and determines whether the operation can proceed.
 func (p *Policy[T]) CanWriteById(predicate func(c echo.Context, entity T) bool) *Policy[T] {
 	p.canWriteById = predicate
-
 	return p
 }
 
 // CanDeleteById takes a predicate and determines whether the operation can proceed.
 func (p *Policy[T]) CanDeleteById(predicate func(c echo.Context, entity T) bool) *Policy[T] {
 	p.canDeleteById = predicate
+	return p
+}
 
+// CanCreate takes a predicate and determines whether the operation can proceed.
+func (p *Policy[T]) CanCreate(predicate func(c echo.Context) bool) *Policy[T] {
+	p.canCreate = predicate
 	return p
 }
